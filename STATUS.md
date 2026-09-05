@@ -1,57 +1,76 @@
 # wgpui-component adapter status
 
-**GitHub:** private [Muktidaya/wgpui-component](https://github.com/Muktidaya/wgpui-component) (`root`). Longbridge remains `upstream` (`https://github.com/longbridge/gpui-component.git`).
+**GitHub:** private [Muktidaya/wgpui-component](https://github.com/Muktidaya/wgpui-component) (`root`). Longbridge remains `upstream`.
 
-**Upstream pin:** `5cb0946` (gpui-component v0.5.2) — see `vendor/UPSTREAM_SHA`
+**Upstream pin:** `94a313a7` (gpui-component **v0.6.0**, 2026-09-03) — `vendor/UPSTREAM_SHA`
 
-**Stack:** vendored gpui-component → **wgpui 0.3.4** via Cargo dependency aliasing (`gpui` → `wgpui`, `gpui_platform` → `wgpui-platform`).
+**Stack:** `wgpui = { version = "0.3.5", path = "../wgpui" }` (and the `gpui` alias of the same). Rust 1.94.0.
 
-## Phase gates
+## 0.6.0 port (2026-09-05) — compiling sync + lib tests green
 
-| Phase | Gate | Status |
-|-------|------|--------|
-| 0 Scaffold | workspace + platform shim | ✅ |
-| 1 wgpui-base | `cargo check -p wgpui-base --lib` | ✅ |
-| 2 wgpui-component | `cargo check -p wgpui-component --lib` | ✅ |
-| 3 hello_world | `cargo run -p hello_world` | ✅ (manual smoke) |
-| 4 assets/macros/i18n | `icon_named!` via build.rs + `rust_i18n` locales | ✅ |
-| 5 integration harness | `cargo test -p wgpui-component-harness` | ✅ |
+**Strategy:** `git merge --no-ff v0.6.0` onto adaptor `2177ce92` (base `5cb09462`). Did **not** take the 32 commits after the tag.
 
-## Architecture
+**21 commits brought in (`5cb09462..v0.6.0`):** NavStack; History / UndoHistory split (public base API); dock reconcile + tiles persistence; button/tab/sheet/notification/settings fixes; repo rename `crates/ui`→`crates/component` (mapped back to `crates/ui`); assets `links = "gpui-kit-default-icons"` (crate name stays `wgpui-component-assets`).
 
-- **Not a thin wrapper.** Upstream expects Zed GPUI 0.2.2 APIs; wgpui 0.3.4 required substantial compatibility extensions in `~/Developer/wgpui` (a11y, `FollowMode`/`ListState`, `BoxShadow::new`, `container_query`, system notifications stubs, focus API, etc.).
-- **Source aliasing:** vendored `.rs` files keep `use gpui::` / `gpui_component::` import names; workspace `Cargo.toml` maps packages to `wgpui-*`.
-- **Platform:** `wgpui-platform` shim exposes `application() → wgpui::Application::new()`.
+**Preserved local work:** CI rewrite (sibling `Muktidaya/wgpui` checkout); `extern crate gpui as wgpui`; `ArenaClearNeeded::clear()`; motion `mul_f64`; blink-cursor `Result` handling; SharedString/`ArcCow` / `Option<TextStyleRefinement>` remaps; `publish = false` workspace default with explicit `publish = true` on component/base/macros/assets; `gpui-wry` `publish = false`; platform 0.6.0 unpublished. Stash `pre-0.6.0-port: local adaptor CI/publish/API remaps` is still present as backup.
 
-## Verification commands
+**Not adopted:** `gpui-kit` umbrella (on disk, not a workspace member). hello_world uses `gpui` + `gpui_component` + `gpui_platform`.
 
-```bash
-cd ~/Developer/wgpui-component
-cargo check -p wgpui-base --lib
-cargo check -p wgpui-component --lib
-cargo run -p hello_world
-cargo test -p wgpui-component-harness
-```
+## Version pins
 
-## Out of scope (this pass)
+| Crate | Version | publish |
+|-------|---------|---------|
+| `wgpui-component` (`crates/ui`) | 0.6.0 | true (Muktidaya metadata) |
+| `wgpui-base` | 0.6.0 | true |
+| `wgpui-component-macros` | 0.6.0 | true |
+| `wgpui-component-assets` | 0.6.0 | true |
+| `wgpui-platform` | 0.6.0 | **false** (shim) |
+| `gpui-wry` | 0.6.0 | **false** (name owned by Longbridge; not a workspace member) |
+| workspace default | — | false |
+| path `wgpui` / `wgpui_derive` | 0.3.5 | path only |
 
-- WASM / `gpui_web`
-- Full upstream `story` gallery (`gpui-shell`, `reqwest_client`, `gpui_web` deps deferred)
-- crates.io publish
-- Braid app migration
+## Verify (`cargo +1.94.0`)
 
-## API delta log (high-signal)
+| Command | Result |
+|---------|--------|
+| `check -p wgpui-base --lib` | ok |
+| `check -p wgpui-component --lib` | ok |
+| `check -p hello_world` | ok |
+| `test -p wgpui-base --lib` | **764 passed** |
+| `test -p wgpui-component --lib` | **417 passed** |
+| `test -p wgpui-component-harness` | **4 passed** |
+| `publish --dry-run -p wgpui-component --allow-dirty` | **fails**: crates.io has no `wgpui ^0.3.5` (0.3.4 max) |
 
-Compatibility shims live primarily in **wgpui** (`~/Developer/wgpui`), not in vendored component sources. Notable gaps patched:
+### 9 `wgpui-component` `--lib` failures fixed (2026-09-05) — adaptor, not wgpui
 
-- `FocusHandle::focus(window, cx)`, `Window::focus(handle, cx)`, `focus_next(cx)`
-- `StatefulInteractiveElement` aria helpers (`aria_numeric_value`, `aria_row_count`, …)
-- `ShapedLine::paint` with align/width; `TouchClickEvent`
-- `ListState`: `set_follow_mode`, `scroll_to_end`, `remeasure*`, `is_following_tail`
-- `BoxShadow::new`, `container_query`, `SystemNotification*` stubs
-- `TextSelectionScopeExt` split from `ElementExt` (for `AnimationElement` bounds)
+Did **not** edit `Muktidaya/wgpui`. Did **not** take post-tag `upstream/main` commits.
+
+| Test | Cause | Fix |
+|------|--------|-----|
+| `input::editor::tests::the_rows_follow_the_font_size` | `StyleRefinement.text` refine **replaces** the `Option`, so `.text_size(24)` dropped `line_height(1.5)` and fell through to φ≈1.618 → 39px | `refine_style_refinement` merges nested text |
+| `inspector::tests::test_rust_to_style` | WGPUI inspector expander matches `wgpui_macros::p_1`, but `styled.rs` calls `wgpui_derive::padding_style_methods!()` — `p_1`/`mx_2` never entered `styled_reflection` | Re-expand those macros on a local `TokenStyled` trait |
+| `message_scroller::tests::test_message_scroller_state_builder` | WGPUI `ListState::scroll_to` never calls `stop_following` | `scroll_to_item` sets `FollowMode::Normal` |
+| `scroll::scrollable::tests::{scrollable,horizontal}_flex_item_shrinks_below_its_content` and `overflow_y_scrollbar_preserves_gap_for_exact_issue_chain` | Inner content kept `flex_1`'s `flex_basis: 0%` after `flex_none()`, so content sized to the viewport and could not scroll | Inner `.flex_basis(Length::Auto)` |
+| `spinner::tests::reduced_motion_spinner_is_static_and_requests_no_frame` | Spinner always `with_animation`, unlike shimmer/progress | Skip animation when `cx.reduce_motion()` |
+| `text::tests::legacy_partial_styles_refine_component_theme_defaults` | Same text-option replace as editor | `compat::resolve_component_style` uses `refine_style_refinement` |
+| `text::window_selection::tests::drag_inside_dialog_still_selects_its_text` | Open animation `top(y * delta)` at t≈0 parked the panel under the title bar (WGPUI animation uses wall `Instant`; `settle(500ms)` cannot finish it) | Keep resting `.top(y)`; animate shadow only. Backdrop fade stays on the overlay, not the occluding parent |
+
+## Divergence from upstream v0.6.0 (intentional)
+
+- Depend on **wgpui 0.3.5**, not `gpui-pre` 0.3.1
+- Crate names `wgpui-*`, not `gpui-kit` / `gpui-kit-assets`
+- Layout `crates/ui` + `crates/macros` (upstream `crates/component` + `crates/component-macros`)
+- Reduced workspace (no story / kit / shell / wasm / webview members)
+- hello_world not rewritten to `gpui_kit::*`
+- Adaptor remaps listed above
+- Stopped at tag; 32 later `upstream/main` commits not taken
+
+## crates.io blockers
+
+1. Publish `wgpui_derive` 0.3.5 then `wgpui` 0.3.5 (sibling). Nothing uploaded yet; dry-run only.
+2. Then `cargo publish` in order: macros → assets → base → component. Platform and `gpui-wry` stay unpublished.
 
 ## Next actions
 
-1. Re-enable `crates/story` when `gpui-shell` + HTTP client are wired for wgpui.
-2. Trim wgpui profile `[profile.dev.package]` keys that still reference `gpui`/`reqwest_client`.
+1. Optional WGPUI follow-ups (not blocking this adaptor): mark `Style.text` `#[refineable]`; expand `wgpui_derive::` style macros in inspector reflection; `ListState::scroll_to` should `stop_following`; animation should use the test clock.
+2. Do not actually `cargo publish` until wgpui 0.3.5 is on crates.io.
